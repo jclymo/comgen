@@ -125,14 +125,14 @@ class ElMD:
 		"""
 		Enforce minimum value for ElMD between known compositions and the composition to be determined.
 		"""
-		return [d >= lb for d in Distance.values()]
+		return [Or(*[d >= lb for d in Distance.values()])]
 
 	@staticmethod	
 	def upper_bound_emd(Distance, ub) -> list:
 		"""
 		Enforce maximum value for ElMD between known compositions and the composition to be determined.		
 		"""
-		return [d <= ub for d in Distance.values()]
+		return [Or(*[d <= ub for d in Distance.values()])]
 
 class Elements:
 	@staticmethod
@@ -520,9 +520,9 @@ class IonicCompositionGenerator(BaseSolver):
 			raise ValueError("Comparison compositions to measure ElMD from are required.")
 		
 		if lb is not None:
-			self.constraints_summary.append(f"At least {lb} distance from {compositions}.")
+			self.constraints_summary.append(f"At least {lb} distance from one of {compositions}.")
 		if ub is not None:
-			self.constraints_summary.append(f"At most {ub} distance from {compositions}.")
+			self.constraints_summary.append(f"At most {ub} distance from one of {compositions}.")
 
 
 		if not (isinstance(compositions, list) or isinstance(compositions, set)):
