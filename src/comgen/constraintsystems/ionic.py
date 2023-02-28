@@ -1,9 +1,9 @@
-from .base import BaseSolver
+from comgen.constraintsystems import BaseSolver
 from z3 import Int, Real, Bool, And, Or, Not, Implies, Sum, sat
 import pymatgen.core as pg
 # from comgen import PolyAtomicSpecies
 from functools import partial
-from ..util import composition_to_pettifor_dict
+from comgen.util import composition_to_pettifor_dict
 import fractions
 
 class BalanceCharges:
@@ -229,32 +229,36 @@ class Elements:
 		return cons
 
 	@staticmethod
-	def distinct_elements_constraints(
-		Element_Present: dict, 
-		min_elements: int, 
-		max_elements: int) -> list:
+	def distinct_elements_min_constraints(Element_Present: dict, min_elements: int) -> list:
 		"""
 		Fix how many elements are permitted.
 		"""
-		return [Sum(list(Element_Present.values())) <= max_elements, Sum(list(Element_Present.values())) >= min_elements]
+		return [Sum(list(Element_Present.values())) >= min_elements]
+
+	@staticmethod
+	def distinct_elements_max_constraints(Element_Present: dict, max_elements: int) -> list:
+		"""
+		Fix how many elements are permitted.
+		"""
+		return [Sum(list(Element_Present.values())) <= max_elements]
 
 	@staticmethod
 	def quantity_integer_multiplier_constraints(
 		Element_Quantities: dict, 
 		Element_Integer_Quantities: dict,
-		bounds: tuple) -> list:
+		ub: int) -> list:
 		"""
 		Find a multiplier within given bounds 
-		s.t. q * Multiplier is an integer for all the normed quantities q. 
+		s.t. q * multiplier is an integer for all the normed quantities q. 
 		equivalent to constraining the sum of quantities but for Real (normed) quantities instead of Integer. 
 		"""
 		cons = []
-		lb, ub = bounds[0], bounds[1]
-		for multiplier in range(lb, ub+1):
+		for multiplier in range(1, ub+1):
 			and_cons = []
 			for el_label, q in Element_Quantities.items():
 				and_cons.append(q * int(multiplier) == Element_Integer_Quantities[el_label])
 			cons.append(And(*and_cons))
+
 		return [Or(*cons)]
 
 	@staticmethod
@@ -268,10 +272,10 @@ class Elements:
 		return [Sum(Element_Quantities.values()) >= bounds[0], Sum(Element_Quantities.values()) <= bounds[1]]
 
 	@staticmethod
-	def select_from_set_constraints(
+	def select_from_set_min_constraints(
 		Element_Present: dict, 
 		elements: set,
-		bounds: int) -> list:
+		num: int) -> list:
 		"""
 		Include a non-zero quantity of at least num elements from the given sets.
 		"""
@@ -280,7 +284,23 @@ class Elements:
 			if (var := Element_Present.get(el_label)) is not None:
 				var_list.append(var)
 
-		return [Sum(*var_list) >= bounds[0], Sum(*var_list) <= bounds[1]]
+		return [Sum(*var_list) >= num]
+
+	@staticmethod
+	def select_from_set_max_constraints(
+		Element_Present: dict, 
+		elements: set,
+		num: int) -> list:
+		"""
+		Include a non-zero quantity of at most num elements from the given sets.
+		"""
+		var_list = []
+		for el_label in elements:
+			if (var := Element_Present.get(el_label)) is not None:
+				var_list.append(var)
+
+		return [Sum(*var_list) <= num]
+
 
 	@staticmethod
 	def total_quantity_from_set_constraints(
@@ -430,16 +450,7 @@ class IonicCompositionGenerator(BaseSolver):
 		self.constraints_summary.append("Balanced charges.")
 		self.constraints_summary.append("Charges respect electronegativity.")
 
-	def total_atoms(self, exact=None, *, lb=None, ub=None):
-		if exact is not None and (lb is not None or ub is not None):
-			raise ValueError('Please provide exactly one of: a) exact quantity b) lower (lb) and / or upper (ub) bounds on quantity')
-		if exact is None and lb is None and ub is None:
-			raise ValueError('Please provide exactly one of: a) exact quantity b) lower (lb) and / or upper (ub) bounds on quantity')
-		
-		if ub is not None and lb is None: lb = 0
-		if lb is not None and ub is None: ub = 1
-		if exact is not None: lb, ub = exact, exact
-
+	def max_total_atoms(self, ub):
 		Element_Integer_Quantities = self.new_variables(
 			'Element_Int_Count',
 			Int, 
@@ -449,24 +460,31 @@ class IonicCompositionGenerator(BaseSolver):
 			Elements.quantity_integer_multiplier_constraints(
 				self._element_quantity_variables(),
 				Element_Integer_Quantities,
-				(lb, ub)))
+				ub))
 		
-		self.constraints_summary.append(f"Total atoms between {lb} and {ub}.")
+		self.constraints_summary.append(f"Total atoms at most {ub}.")
 
 	def distinct_elements(self, exact=None, *, lb=None, ub=None):
 		if exact is not None and (lb is not None or ub is not None):
 			raise ValueError('Please provide exactly one of: a) exact quantity b) lower (lb) and / or upper (ub) bounds on quantity')
 		if exact is None and lb is None and ub is None:
 			raise ValueError('Please provide exactly one of: a) exact quantity b) lower (lb) and / or upper (ub) bounds on quantity')
-		
-		if ub is not None and lb is None: lb = 0
-		if lb is not None and ub is None: ub = 1
+
 		if exact is not None: lb, ub = exact, exact
-		
-		self.constraints.extend(
-			Elements.distinct_elements_constraints(self._element_present_variables(), lb, ub))
-		
-		self.constraints_summary.append(f"Distinct elements between {lb} and {ub}.")
+
+		if lb is not None:
+			self.constraints.extend(
+				Elements.distinct_elements_min_constraints(
+					self._element_present_variables(), 
+					lb))
+			self.constraints_summary.append(f"Number of distinct elements at least {lb}.")
+
+		if ub is not None:
+			self.constraints.extend(
+				Elements.distinct_elements_max_constraints(
+					self._element_present_variables(), 
+					ub))			
+			self.constraints_summary.append(f"Number of distinct elements at most {ub}.")
 
 	def include_element_from(self, element_set, exact=None, *, lb=None, ub=None):
 		if exact is not None and (lb is not None or ub is not None):
@@ -475,21 +493,26 @@ class IonicCompositionGenerator(BaseSolver):
 			exact = 1
 			# raise ValueError('Please provide exactly one of: a) exact quantity b) lower (lb) and / or upper (ub) bounds on quantity')
 		
-		if ub is not None and lb is None: lb = 0
-		if lb is not None and ub is None: ub = 1
 		if exact is not None: lb, ub = exact, exact
-
-		self.constraints_summary.append(f"Include between {lb} and {ub} element(s) from {element_set}.")
 		
 		# expect element_set will be pg.Elements or symbols. 
 		# But the solver is using pettifor values to refer to elements. 
-		element_set = {int(pg.Element(el).mendeleev_no) for el in element_set}
-
-		self.constraints.extend(
-			Elements.select_from_set_constraints(
-				self._element_present_variables(), 
-				element_set,
-				(lb, ub)))
+		element_set_ids = {int(pg.Element(el).mendeleev_no) for el in element_set}
+		
+		if lb is not None:
+			self.constraints.extend(
+				Elements.select_from_set_min_constraints(
+					self._element_present_variables(), 
+					element_set_ids,
+					lb))
+			self.constraints_summary.append(f"Include at least {lb} element(s) from {element_set}.")			
+		if ub is not None:
+			self.constraints.extend(
+				Elements.select_from_set_max_constraints(
+					self._element_present_variables(), 
+					element_set_ids,
+					ub))					
+			self.constraints_summary.append(f"Include at most {ub} element(s) from {element_set}.")			
 
 	# TODO specify bounds on quantity across a set of elts
 	def fix_elements_quantity(self, elts: set, exact=None, *, lb=None, ub=None):
@@ -523,7 +546,6 @@ class IonicCompositionGenerator(BaseSolver):
 			self.constraints_summary.append(f"At least {lb} distance from one of {compositions}.")
 		if ub is not None:
 			self.constraints_summary.append(f"At most {ub} distance from one of {compositions}.")
-
 
 		if not (isinstance(compositions, list) or isinstance(compositions, set)):
 			compositions = [compositions]
