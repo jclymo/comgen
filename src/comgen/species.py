@@ -1,5 +1,5 @@
 from collections import defaultdict
-from .data import data
+from comgen.data import data
 import pymatgen.core as pg
 import numpy as np
 
@@ -93,21 +93,6 @@ class SpeciesCollection:
     self._elements_view.default_factory = None # freeze default dict
     
     return self._elements_view
-
-  def group_by_composition_view(self):
-    if self._compositions_view:
-      return self._compositions_view
-    
-    for sp in self._species:
-      if isinstance(sp, PolyAtomicSpecies):
-        for comp in sp.composition:
-          self._compositions_view[comp].append(sp)
-      else:
-        self._compositions_view[sp.element].append(sp)
-    
-    self._elements_view.default_factory = None # freeze default dict
-
-    return self._compositions_view
 
   def update(self, species):
     if isinstance(species, PolyAtomicSpecies) or isinstance(species, pg.Species):
