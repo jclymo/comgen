@@ -97,26 +97,27 @@ class ElMD:
 		Should be easy to propagate constraints, but it's also a lot of real valued variables to cope with.
 		"""
 		cons = []
-		for i in range(len(Distance)):
-			cons.append(Local_Diffs[i][0] == 0)
-			cons.append(Abs_Diffs[i][0] == 0)
-			cons.append(Sum([d for _, d in Abs_Diffs[i].items()]) == Distance[i])
+		# for i in range(len(Distance)):
+		for c, known_petti_dict in known.items():
+			cons.append(Local_Diffs[c][0] == 0)
+			cons.append(Abs_Diffs[c][0] == 0)
+			cons.append(Sum([d for _, d in Abs_Diffs[c].items()]) == Distance[c])
 
 			for p_num in range(1, ElMD.PETTI_MAX+1):
 				cons.append(
 					Sum(
 						Element_Quantities.get(p_num-1, 0),
-						Local_Diffs[i][p_num-1],
-						- known[i].get(p_num-1, 0)) == Local_Diffs[i][p_num])
+						Local_Diffs[c][p_num-1],
+						- known_petti_dict.get(p_num-1, 0)) == Local_Diffs[c][p_num])
 			
 				cons.append(
 					Implies(
-						Local_Diffs[i][p_num] >= 0, 
-						Abs_Diffs[i][p_num] == Local_Diffs[i][p_num]))
+						Local_Diffs[c][p_num] >= 0, 
+						Abs_Diffs[c][p_num] == Local_Diffs[c][p_num]))
 				cons.append(
 					Implies(
-						Local_Diffs[i][p_num] < 0,
-						Abs_Diffs[i][p_num] ==  -Local_Diffs[i][p_num]))
+						Local_Diffs[c][p_num] < 0,
+						Abs_Diffs[c][p_num] ==  -Local_Diffs[c][p_num]))
 
 		return cons
 
@@ -550,15 +551,16 @@ class IonicCompositionGenerator(BaseSolver):
 		if not (isinstance(compositions, list) or isinstance(compositions, set)):
 			compositions = [compositions]
 		
-		compositions = [composition_to_pettifor_dict(comp) for comp in compositions]
+		composition_dicts = {str(comp): composition_to_pettifor_dict(comp) for comp in compositions}
 
 		# set up local variables - not for reuse outside of these constraints
-		Distance = self.new_variables('EMD', Real, list(range(len(compositions))))
+		Distance = self.new_variables('EMD', Real, compositions)
 				
 		Local_Diffs, Abs_Diffs = {}, {}
-		for i in range(len(compositions)):
-			Local_Diffs[i] = self.new_variables(f'Local_{i}', Real, list(range(ElMD.PETTI_MAX+1)))
-			Abs_Diffs[i] = self.new_variables(f'Abs_{i}', Real, list(range(ElMD.PETTI_MAX+1)))
+		for comp in compositions:
+			c = str(comp)
+			Local_Diffs[c] = self.new_variables(f'Local_{c}', Real, list(range(ElMD.PETTI_MAX+1)))
+			Abs_Diffs[c] = self.new_variables(f'Abs_{c}', Real, list(range(ElMD.PETTI_MAX+1)))
 
 		self.constraints.extend(
 			ElMD.emd_setup_constraints(
@@ -566,7 +568,7 @@ class IonicCompositionGenerator(BaseSolver):
 				self._element_quantity_variables(),
 				Local_Diffs,
 				Abs_Diffs,
-				compositions))
+				composition_dicts))
 
 		if lb is not None:
 			self.constraints.extend(
