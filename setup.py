@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="comgen", 
-    version="0.0.8",
+    version="0.0.13",
     description="explore ionic composition space",
     packages=['comgen', 'comgen.constraintsystems', 'comgen.data'], 
     package_dir={'':'src'},
