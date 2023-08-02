@@ -347,6 +347,36 @@ class Elements:
 		return cons
 
 
+	@staticmethod
+	def starting_material_constraints(
+		Element_Quantities: dict,
+		Ingredient_Weights: dict,
+		ingredient_compositions: dict
+	) -> list:
+		"""
+		Given some input starting materials (ingredients) require that the final composition can be made from some combination of these ingredients.
+		i.e. weighted (by Ingredient_Weights) sum of ingredient compositions equals final composition (specified by Element_Quantities)
+
+		params:
+			Element_Quantities: {el_label: z3.Var}
+			Ingredient_Weights: {composition: z3.Var}
+			ingredient_compositions: {composition: {el_label: quantity}}
+		"""
+		cons = []
+		for el, q in Element_Quantities.items():
+			weighted_ingredients = [ingredient_compositions[comp][el]*Ingredient_Weights[comp] for comp in Ingredient_Weights.keys()]
+			cons.append(Sum(weighted_ingredients) == q)
+		return [And(*cons)]
+	
+	@staticmethod
+	def ingredient_definition_constraints(
+		Ingredient_Weights: dict
+	) -> list:
+		"""
+		Only positive quantities of each ingredient composition are allowed.
+		"""
+		return [w >= 0 for w in Ingredient_Weights.values()]
+
 class IonicCompositionGenerator(BaseSolver):
 	def __init__(self, ions=None, precision=0.1):
 		super().__init__()
@@ -537,6 +567,21 @@ class IonicCompositionGenerator(BaseSolver):
 			Elements.element_group_quantity_constraints(
 				self._element_quantity_variables(elts),
 				(lb, ub)))
+
+	def construct_from(self, compositions):
+		self.constraints_summary.append(f"Construct from a weighted sum of {compositions}.")
+
+		composition_dicts = {str(comp): composition_to_pettifor_dict(comp) for comp in compositions}
+
+		# create local variables - not for reuse outside of these constraints
+		Ingredient_Weights = self.new_variables('Ingredient_Weight', Real, compositions, Elements.ingredient_definition_constraints)
+
+		self.constraints.extend(
+			Elements.starting_material_constraints(
+				self._element_quantity_variables(),
+				Ingredient_Weights,
+				composition_dicts))
+
 
 	def emd_comparison_compositions(self, compositions, *, lb=None, ub=None):
 		if lb is None and ub is None:
