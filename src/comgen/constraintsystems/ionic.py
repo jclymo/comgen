@@ -232,7 +232,7 @@ class Elements:
 	@staticmethod
 	def distinct_elements_min_constraints(Element_Present: dict, min_elements: int) -> list:
 		"""
-		Fix how many elements are permitted.
+		Fix how many elements are permitted. TODO Special case of select_from_set_min_constraints
 		"""
 		return [Sum(list(Element_Present.values())) >= min_elements]
 
@@ -331,6 +331,7 @@ class Elements:
 		"""
 		Require that total quantity of elements in elements_1 / total quantity of elements in elements_2 
 		is between bounds[0] and bounds[1]. 
+		TODO not used currently!! Need to expose these constraints in API
 		"""
 		cons = []
 
