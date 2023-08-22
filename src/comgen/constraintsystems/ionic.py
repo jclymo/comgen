@@ -640,6 +640,16 @@ class IonicCompositionGenerator(BaseSolver):
 
 		self.solver.add(Or(*exclusions))
 
+	def exclude_composition(self, composition):
+		comp = composition_to_pettifor_dict(composition) # el_label : normed_quantity
+		Element_Quantities = self._element_quantity_variables() # el_label : var
+		# check comp can be represented
+		for el in comp.keys():
+			if not el in Element_Quantities.keys():
+				return # nothing to do - can't generate this anyway. 
+		comp_as_solution = {var: comp.get(el_label, 0.0) for el_label, var in Element_Quantities.items()} # var: normed_quantity
+		self.exclude_solution(comp_as_solution)
+
 	def format_solution(self, model, as_frac=False):
 		Element_Quantities = self._element_quantity_variables()
 		out = {}
