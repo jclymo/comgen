@@ -1,4 +1,7 @@
-from z3 import Solver, sat
+from z3 import Solver, sat, If
+
+def Abs(x):
+	return If(x >= 0, x, -x)
 
 class BaseSolver:
 	def __init__(self):

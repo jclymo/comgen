@@ -1,4 +1,4 @@
-from comgen.constraintsystems import BaseSolver
+from comgen.constraintsystems.base import BaseSolver, Abs
 from z3 import Int, Real, Bool, And, Or, Not, Implies, Sum, sat
 import pymatgen.core as pg
 # from comgen import PolyAtomicSpecies
@@ -110,14 +110,7 @@ class ElMD:
 						Local_Diffs[c][p_num-1],
 						- known_petti_dict.get(p_num-1, 0)) == Local_Diffs[c][p_num])
 			
-				cons.append(
-					Implies(
-						Local_Diffs[c][p_num] >= 0, 
-						Abs_Diffs[c][p_num] == Local_Diffs[c][p_num]))
-				cons.append(
-					Implies(
-						Local_Diffs[c][p_num] < 0,
-						Abs_Diffs[c][p_num] ==  -Local_Diffs[c][p_num]))
+				cons.append(Abs_Diffs[c][p_num] == Abs(Local_Diffs[c][p_num]))
 
 		return cons
 
