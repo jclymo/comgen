@@ -357,7 +357,7 @@ class Elements:
 		"""
 		cons = []
 		for el, q in Element_Quantities.items():
-			weighted_ingredients = [ingredient_compositions[comp][el]*Ingredient_Weights[comp] for comp in Ingredient_Weights.keys()]
+			weighted_ingredients = [ingredient_compositions[comp].get(el, 0)*Ingredient_Weights[comp] for comp in Ingredient_Weights.keys()]
 			cons.append(Sum(weighted_ingredients) == q)
 		return [And(*cons)]
 	
@@ -546,6 +546,7 @@ class IonicCompositionGenerator(BaseSolver):
 		if exact is None and lb is None and ub is None:
 			raise ValueError('Please provide exactly one of: a) exact quantity b) lower (lb) and / or upper (ub) bounds on quantity')
 		
+		# TODO use rationals rather than decimal estimation where possible. 
 		if ub is not None and lb is None: lb = 0
 		if lb is not None and ub is None: ub = 1
 		if exact is not None: lb, ub = exact, exact
@@ -564,6 +565,7 @@ class IonicCompositionGenerator(BaseSolver):
 	def construct_from(self, compositions):
 		self.constraints_summary.append(f"Construct from a weighted sum of {compositions}.")
 
+		# TODO use rationals rather than decimal estimation where possible. 
 		composition_dicts = {str(comp): composition_to_pettifor_dict(comp) for comp in compositions}
 
 		# create local variables - not for reuse outside of these constraints
@@ -700,4 +702,4 @@ class IonicCompositionGenerator(BaseSolver):
 			# 	f.write(str(model['Multiplier'].as_long()))
 			
 			self.exclude_solution(self.solver.model())
-			yield solution
+			yield solution 

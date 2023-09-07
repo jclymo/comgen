@@ -267,6 +267,32 @@ class IonComGenTest(unittest.TestCase):
         self.assertNotEqual(success(), [])   
         self.assertEqual(fail(), [])    
 
+    def construct_from(self):
+        def success():
+            if self.verbose: print("testing construct from compositions: fix quantities Li5 Cl1 O5 Al2 and input comps ['Cl2Li2', 'Al4O6', 'Li2O1'] (SAT)")
+            from z3 import Q
+            gen = cc.IonicCompositionGenerator(self.sps)
+            gen.fix_elements_quantity('Li', Q(5, 13))
+            gen.fix_elements_quantity('Cl', Q(1, 13))
+            gen.fix_elements_quantity('O', Q(5, 13))
+            gen.fix_elements_quantity('Al', Q(2, 13))
+            gen.construct_from(['Cl2Li2', 'Al4O6', 'Li2O1'])
+            return gen.get_next()
+        
+        def fail():
+            if self.verbose: print("testing construct from compositions: fix quantities Li5 Cl1 O5 Al2 and input comps ['Cl2Li2', 'Al1O1Cl1', 'Li2O1'] (UNSAT)")
+            from z3 import Q
+            gen = cc.IonicCompositionGenerator(self.sps)
+            gen.fix_elements_quantity('Li', Q(5, 13))
+            gen.fix_elements_quantity('Cl', Q(1, 13))
+            gen.fix_elements_quantity('O', Q(5, 13))
+            gen.fix_elements_quantity('Al', Q(2, 13))
+            gen.construct_from(['Cl2Li2', 'Al1O1Cl1', 'Li2O1'])
+            return gen.get_next()
+
+        self.assertNotEqual(success(), [])
+        self.assertEqual(fail(), [])
+
     def run(self):
         if self.verbose: print('starting tests.')
         self.charge_balance()
@@ -276,6 +302,7 @@ class IonComGenTest(unittest.TestCase):
         self.emd()
         self.exclude_solution()
         self.total_atoms()
+        self.construct_from()
         print('all tests passed.')
 
 import argparse
