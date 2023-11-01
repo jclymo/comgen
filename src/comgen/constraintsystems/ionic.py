@@ -153,18 +153,19 @@ class Elements:
 	@staticmethod
 	def element_group_quantity_constraints(
 		Element_Quantities: dict,
-		bounds: tuple
-	) -> list:
+		lb: float,
+		ub: float) -> list:
 		"""
 		Total quantity across the set of elements must be between given bounds.
 
 		params:
 		Element_Quantities: {element_label: z3.Var}
-		bounds: (lower_bound, upper_bound), bounds are int|float
+		lb: lower bound
+		ub: upper bound
 		"""
 		cons = []
-		cons.append(Sum(list(Element_Quantities.values())) <= bounds[1])
-		cons.append(Sum(list(Element_Quantities.values())) >= bounds[0])
+		cons.append(Sum(list(Element_Quantities.values())) <= ub)
+		cons.append(Sum(list(Element_Quantities.values())) >= lb)
 		return cons
 
 	@staticmethod
@@ -222,7 +223,10 @@ class Elements:
 		return cons
 
 	@staticmethod
-	def distinct_elements_constraints(Element_Present: dict, lb: int, ub: int) -> list:
+	def distinct_elements_constraints(
+		Element_Present: dict, 
+		lb: int, 
+		ub: int) -> list:
 		"""
 		Fix how many elements are permitted.
 		"""
@@ -249,25 +253,6 @@ class Elements:
 		cons.append(Sum(*var_list) >= lb)
 		cons.append(Sum(*var_list) <= ub)
 		return cons
-
-	@staticmethod
-	def total_quantity_from_set_constraints(
-		Element_Quantities: dict, 
-		elements: set,
-		bounds: tuple) -> list:
-		"""
-		The total quantity of elements in this set (as a proportion of the whole).
-		
-		params:
-			Element_Quantities: {el_label: z3.Var}
-			elements: {el_label}
-			bounds: (lower_bound, upper_bound)
-		"""
-		incl = []
-		for el_label in elements:
-			incl.append(Element_Quantities[el_label])
-
-		return [Sum(incl) >= bounds[0], Sum(incl) <= bounds[1]]
 
 	@staticmethod
 	def relative_quantity_from_sets_constraints(
@@ -328,25 +313,25 @@ class Elements:
 	def total_atom_constraints(
 		Total_Atoms,
 		Species_Quantities: dict,
-		num_atoms_lb: int,
-		num_atoms_ub: int
+		lb: int,
+		ub: int
 	) -> list:
 		"""
 		Enforce total number of atoms, i.e. quantity of each species must be rational with denominator matching number of atoms. 
 			Total_Atoms: z3.Var
 			Species_Quantities: {species_label: z3.Var}
-			num_atoms_lb: int
-			num_atoms_ub: int
+			lb: lower bound on number of atoms int
+			ub: upper bound on number of atoms int
 		"""
 		cons = []
 
-		for num_atoms in range(num_atoms_lb, num_atoms_ub+1):
+		for num_atoms in range(lb, ub+1):
 			for q in Species_Quantities.values():
 				select_q_from = Or(*[q == pq for pq in [Q(n, num_atoms) for n in range(num_atoms+1)]])
 			cons.append(Implies(Total_Atoms == num_atoms, select_q_from))
 
-		cons.append(Total_Atoms >= num_atoms_lb)
-		cons.append(Total_Atoms <= num_atoms_ub)
+		cons.append(Total_Atoms >= lb)
+		cons.append(Total_Atoms <= ub)
 
 		return cons
 
@@ -392,6 +377,11 @@ class IonicCompositionGenerator(BaseSolver):
 		return out
 
 	def _element_quantity_variables(self, ids=None):
+		"""
+		Retrieve or create variables for element quantities.
+		Pass in a set of ids to retrieve only those variables (but will always create all variables).
+		Note that if ids contains an id not in the list of element labels, it will be ignored.
+		"""
 		eq_vars = self._variables(
 			'Element_Quantities', 
 			Real, 
@@ -399,7 +389,7 @@ class IonicCompositionGenerator(BaseSolver):
 			Elements.element_quantity_defn_constraints)
 		if ids is None:
 			return eq_vars
-		return {id: eq_vars[id] for id in ids}
+		return {id: eq_vars[id] for id in ids if id in eq_vars.keys()}
 	
 	def _element_present_variables(self):
 		init_func = partial(
@@ -533,7 +523,7 @@ class IonicCompositionGenerator(BaseSolver):
 		if lb is not None and ub is None: ub = 1
 		if exact is not None: lb, ub = exact, exact
 
-		self.constraints_summary.append(f"Fix quantity of elements {elts} between {lb} and {ub}.")
+		self.constraints_summary.append(f"Fix total quantity of elements from {elts} between {lb} and {ub}.")
 
 		if isinstance(elts, str) or isinstance(elts, pg.Element): 
 			elts = {elts} # in case a single element symbol is passed in. 
@@ -542,7 +532,8 @@ class IonicCompositionGenerator(BaseSolver):
 		self.constraints.extend(
 			Elements.element_group_quantity_constraints(
 				self._element_quantity_variables(elts),
-				(lb, ub)))
+				lb,
+				ub))
 
 	def construct_from(self, compositions):
 		self.constraints_summary.append(f"Construct from a weighted sum of {compositions}.")
