@@ -224,8 +224,8 @@ class Elements:
 
 	@staticmethod
 	def distinct_elements_constraints(
-		Element_Present: dict, 
-		lb: int, 
+		Element_Present: dict,
+		lb: int,
 		ub: int) -> list:
 		"""
 		Fix how many elements are permitted.
@@ -250,8 +250,8 @@ class Elements:
 				var_list.append(var)
 		
 		cons = []
-		cons.append(Sum(*var_list) >= lb)
-		cons.append(Sum(*var_list) <= ub)
+		cons.append(Sum(var_list) >= lb)
+		cons.append(Sum(var_list) <= ub)
 		return cons
 
 	@staticmethod
@@ -259,22 +259,24 @@ class Elements:
 		Element_Quantities: dict,
 		elements_1: set,
 		elements_2: set,
-		bounds: tuple) -> list:
+		lb: float, 
+		ub: float) -> list:
 		"""
 		Require that total quantity of elements in elements_1 / total quantity of elements in elements_2 
-		is between bounds[0] and bounds[1]. 
+		is between lb and ub.
 		TODO not used currently!! Need to expose these constraints in API
 		"""
 		cons = []
 
 		incl_1 = [q for el_label, q in Element_Quantities.items() if el_label in elements_1]
-		incl_2 = [q for el_label, q in Element_Quantities.items() if el_label in elements_2]
+		incl_2_lower = [-q*lb for el_label, q in Element_Quantities.items() if el_label in elements_2]
+		incl_2_upper = [-q*ub for el_label, q in Element_Quantities.items() if el_label in elements_2]
 
 		# sum(q1) / sum(q2) >= lb
 		# sum(q1) - sum(q2)*lb >= 0
 		# sum(q1 \cup -q2*lb) >= 0
-		cons.append(Sum([q*bounds[0] for q in incl_2]+incl_1) >= 0)
-		cons.append(Sum([q*bounds[1] for q in incl_2]+incl_1) <= 0)
+		cons.append(Sum(incl_2_lower + incl_1) >= 0)
+		cons.append(Sum(incl_2_upper + incl_1) <= 0)
 
 		return cons
 
@@ -282,32 +284,47 @@ class Elements:
 	@staticmethod
 	def starting_material_constraints(
 		Element_Quantities: dict,
-		Ingredient_Weights: dict,
+		Ingredient_Quantities: dict,
 		ingredient_compositions: dict
 	) -> list:
 		"""
 		Given some input starting materials (ingredients) require that the final composition can be made from some combination of these ingredients.
-		i.e. weighted (by Ingredient_Weights) sum of ingredient compositions equals final composition (specified by Element_Quantities)
+		i.e. weighted (by Ingredient_Quantities) sum of ingredient compositions equals final composition (specified by Element_Quantities)
 
 		params:
 			Element_Quantities: {el_label: z3.Var}
-			Ingredient_Weights: {composition: z3.Var}
+			Ingredient_Quantities: {composition: z3.Var}
 			ingredient_compositions: {composition: {el_label: quantity}}
 		"""
 		cons = []
 		for el, q in Element_Quantities.items():
-			weighted_ingredients = [ingredient_compositions[comp].get(el, 0)*Ingredient_Weights[comp] for comp in Ingredient_Weights.keys()]
+			weighted_ingredients = [ingredient_compositions[comp].get(el, 0)*i_quant for comp, i_quant in Ingredient_Quantities.items()]
 			cons.append(Sum(weighted_ingredients) == q)
 		return [And(*cons)]
+
+	@ staticmethod
+	def starting_material_cost_constraints(
+		Ingredient_Quantities: dict,
+		ingredient_costs: dict,
+		total_cost: float) -> list:
+		"""
+		Total cost of selected ingredients must be less than specified bound. 
+		Ingredient costs are expected to be per mole of stated composition. 
+			Ingredient_Quantities: {composition: z3.Var}
+			ingredient_costs: {composition: float}
+			total_cost: float
+		"""
+		return [Sum([ingredient_costs[comp]*q for comp, q in Ingredient_Quantities.items()]) <= total_cost]
+
 	
 	@staticmethod
 	def ingredient_definition_constraints(
-		Ingredient_Weights: dict
+		Ingredient_Quantities: dict
 	) -> list:
 		"""
-		Only positive quantities of each ingredient composition are allowed.
+		Only non-negative quantities of each ingredient composition are allowed.
 		"""
-		return [w >= 0 for w in Ingredient_Weights.values()]
+		return [w >= 0 for w in Ingredient_Quantities.values()]
 	
 	@staticmethod
 	def total_atom_constraints(
@@ -535,21 +552,37 @@ class IonicCompositionGenerator(BaseSolver):
 				lb,
 				ub))
 
-	def construct_from(self, compositions):
+	def construct_from(self, compositions, costs=None, total_cost=None):
+		"""
+		Specify ingredient compositions from which the new composition can be made. 
+		Optionally, specify costs of each ingredient and a bound on the total cost. 
+			compositions: list of pg.Composition
+			costs: list of floats; if specified must have same length and order as compositions.
+			total_cost: float
+		"""
 		self.constraints_summary.append(f"Construct from a weighted sum of {compositions}.")
-
-		# TODO use rationals rather than decimal estimation where possible. 
 		composition_dicts = {str(comp): composition_to_pettifor_dict(comp) for comp in compositions}
 
 		# create local variables - not for reuse outside of these constraints
-		Ingredient_Weights = self.new_variables('Ingredient_Weight', Real, compositions, Elements.ingredient_definition_constraints)
+		Ingredient_Quantities = self.new_variables('Ingredient_Quantities', Real, compositions, Elements.ingredient_definition_constraints)
 
 		self.constraints.extend(
 			Elements.starting_material_constraints(
 				self._element_quantity_variables(),
-				Ingredient_Weights,
+				Ingredient_Quantities,
 				composition_dicts))
+		
+		if costs is not None:
+			assert len(costs) == len(compositions)
+			assert total_cost is not None
+			costs = {str(comp): cost for comp, cost in zip(compositions, costs)}
+			self.constraints_summary.append(f"Total cost of ingredients cannot exceed {total_cost}.")
 
+		self.constraints.extend(
+			Elements.starting_material_cost_constraints(
+				Ingredient_Quantities,
+				costs,
+				total_cost))
 
 	def emd_comparison_compositions(self, compositions, *, lb=None, ub=None):
 		if lb is None and ub is None:
