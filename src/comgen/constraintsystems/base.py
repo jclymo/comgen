@@ -5,17 +5,18 @@ def Abs(x):
 
 class BaseSolver:
 	def __init__(self):
-		self.solver = Solver()
+		# self.solver = Solver()
 		self._variable_cache = {}
 		self.constraints = []
- 
+		self.constraints_summary = []
+
 	def _variables(self, var_name: str, var_type, ids: list, init_func=None) -> dict:
 		vars = self._variable_cache.get(var_name)
 		if vars is None:
 			self._variable_cache[var_name] = self.new_variables(var_name, var_type, ids, init_func)
 		return self._variable_cache[var_name]
 
-	def new_variables(self, var_name: str, var_type, ids: list, init_func=None) -> dict:
+	def new_variables(self, var_name: str, var_type, ids: list, init_func=None) -> dict: # TODO support for nested ids or no ids
 		if not isinstance(ids[0], int): 
 			ids = [str(idx) for idx in ids]
 		vars = {idx: var_type(f'{var_name}_{idx}') for idx in ids}
