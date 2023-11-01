@@ -351,7 +351,22 @@ class Elements:
 		cons.append(Total_Atoms <= ub)
 
 		return cons
-
+	
+	@staticmethod
+	def select_species_pair_constraints(
+		Species_Pairs: dict,
+		Species_Quantities: dict) -> list:
+		"""
+		Species_Pairs: {(species_label1, species_label2): z3.Var}
+		Species_Quantities: {species_label: z3.Var}
+		"""
+		cons = []
+		cons.append(Or(*[sp == 1 for sp in Species_Pairs.values()]))
+		for pair, sp in Species_Pairs.items():
+			a, b = pair
+			cons.append(Implies(sp == 1, Species_Quantities[a] > 0))
+			cons.append(Implies(sp == 1, Species_Quantities[b] > 0))
+		return cons
 
 class IonicCompositionGenerator(BaseSolver):
 	def __init__(self, ions=None, precision=0.1):
@@ -419,13 +434,17 @@ class IonicCompositionGenerator(BaseSolver):
 			self.element_labels, 
 			init_func)		
 
-	def _species_quantity_variables(self):
+	def _species_quantity_variables(self, ids=None):
 		init_func = partial(
 			Elements.species_quantity_defn_constraints,
 			Element_Quantities = self._element_quantity_variables(),
 			element_ion_weights = self.element_ion_weights())
 	
-		return self._variables('Species_Quantities', Real, self.ion_labels, init_func)
+		sps_vars = self._variables('Species_Quantities', Real, self.ion_labels, init_func)
+	
+		if ids is None:
+			return sps_vars
+		return {id: sps_vars[id] for id in ids if id in sps_vars.keys()}
 	
 	def _element_positive_variables(self):
 		mono_ions = {str(ion): ion for ion in self._ions.filter_mono_species().ungrouped_view()}
@@ -583,6 +602,61 @@ class IonicCompositionGenerator(BaseSolver):
 				Ingredient_Quantities,
 				costs,
 				total_cost))
+		
+
+	def radius_ratio(self, sps_1=None, sps_2=None, charges_1=None, cn_1=None, charge_2=None, cn_2=None, lb=None, ub=None):
+		"""
+		Coordination number is as used in pymatgen https://pymatgen.org/pymatgen.core.html#pymatgen.core.periodic_table.Species.get_shannon_radius
+		i.e. roman numberals I-IX, as well as IIIPY, IVPY and IVSQ.
+
+		sps_1 and sps_2 are SpeciesCollections
+
+		require that something is selected from set1, something is selected from set2, and the ratio s1 / s2 is between lb and ub.
+		"""
+		def get_radii(all_sps, cn=None):
+			radii = {}
+			if cn is not None:
+				for sp in all_sps.ungrouped_view():
+					try:
+						radii[str(sp)] = sp.get_shannon_radius(cn=cn, spin='High Spin', type='crystal')
+					except KeyError:
+						pass
+			else:
+				radii = {str(sp): sp.ionic_radius for sp in all_sps.ungrouped_view()}
+			return radii
+		
+		def sps_with_charge(sps, charges):
+			if sps is None: 
+				sps = self._ions
+			sps = sps.filter_mono_species()
+			if charges is not None:
+				sps = sps.having_charge(charges) 
+			return sps
+
+		if lb is None and ub is None:
+			raise ValueError('Please provide at least one of lower (lb) and upper (ub) bounds on radius ratios.')
+
+		# filter sps lists to only include those with correct charge / coord number
+		sps_1 = sps_with_charge(sps_1, charges_1)
+		sps_2 = sps_with_charge(sps_2, charge_2)
+
+		radii_1 = get_radii(sps_1, cn_1)
+		radii_2 = get_radii(sps_2, cn_2)
+
+		pairs = []
+		for sp1, r1 in radii_1.items():
+			for sp2, r2 in radii_2.items():
+				if lb is None or r1 / r2 >= lb:
+					if ub is None or r1 / r2 <= ub:
+						pairs[(sp1, sp2)]
+		
+		# TODO check what happens if multiple of this type of constraint is used -- will vars conflict? 
+		Species_Pairs = self.new_variables('Species_Pairs', Bool, pairs) 
+
+		self.constraints.extend(
+			Elements.select_species_pair_constraints(
+				Species_Pairs,
+				self._species_quantity_variables()))
 
 	def emd_comparison_compositions(self, compositions, *, lb=None, ub=None):
 		if lb is None and ub is None:
