@@ -383,9 +383,14 @@ class IonicCompositionGenerator(BaseSolver):
 		self._set_basic_constraints()
 		
 	@property
-	def element_labels(self):
+	def element_labels(self, element_list=None, as_dict=False):
 		# use pettifor number instead of element symbol
-		return [int(el.mendeleev_no) for el in self._elements] # TODO check if any elements are missing a mendeleev_no... what then? 
+		if element_list is not None:
+			element_list = [pg.Element(el) for el in element_list]
+
+		if as_dict:
+			return {el: int(el.mendeleev_no) for el in (element_list or self._elements)}
+		return [int(el.mendeleev_no) for el in (element_list or self._elements)] # TODO check if any elements are missing a mendeleev_no... what then? 
 	
 	# TODO consider functools cached_property instead - avoid a little bit of repeated effort.
 	@property
@@ -394,17 +399,14 @@ class IonicCompositionGenerator(BaseSolver):
 
 	def element_ion_weights(self): # TODO not sure I like this here
 		out = {}
+		element_labels = self.element_labels(list(self._ions.group_by_element_view().keys()), True)
 
 		for el, ions in self._ions.group_by_element_view().items():
+			el_label = element_labels[el]
 			ion_weights = {}
 			for ion in ions: 
-				if isinstance(ion, pg.Species):
-					ion_weights[str(ion)] = 1 
-				# elif isinstance(ion, PolyAtomicSpecies):
-				else:
-					ion_weights[str(ion)] = ion.multiplier(el)
-
-			out[int(el.mendeleev_no)] = ion_weights
+				ion_weights[str(ion)] = 1 if isinstance(ion, pg.Species) else ion.multiplier(el)
+			out[el_label] = ion_weights
 
 		return out
 
