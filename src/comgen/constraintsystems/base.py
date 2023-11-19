@@ -17,9 +17,7 @@ class BaseSolver:
 		return self._variable_cache[var_name]
 
 	def new_variables(self, var_name: str, var_type, ids: list, init_func=None) -> dict: # TODO support for nested ids or no ids
-		if not isinstance(ids[0], int): 
-			ids = [str(idx) for idx in ids]
-		vars = {idx: var_type(f'{var_name}_{idx}') for idx in ids}
+		vars = {idx: var_type(f'{var_name}_{str(idx)}') for idx in ids}
 		if init_func:
 			self.constraints.extend(init_func(vars)) # constraints that define these variables wrt others
 		return vars
