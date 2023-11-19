@@ -71,7 +71,7 @@ class SpeciesCollection:
     @staticmethod
     def _is_valid_collection_data(data):
         for item in data:
-            assert isinstance(item, pg.Species) or isinstance(item, PolyAtomicSpecies)
+            assert isinstance(item, pg.Species) or isinstance(item, PolyAtomicSpecies), print(data)
 
     def ungrouped_view(self) -> set:
         return self._species
@@ -96,7 +96,9 @@ class SpeciesCollection:
 
     def update(self, species):
         if isinstance(species, PolyAtomicSpecies) or isinstance(species, pg.Species):
-            species = set(species) # to allow passing in a single item
+            species = {species} # to allow passing in a single item
+        if isinstance(species, SpeciesCollection):
+            species = species.ungrouped_view()
         self._is_valid_collection_data(species) # error checking
         self._set_empty_views() # old derived data now invalid
 
@@ -104,7 +106,9 @@ class SpeciesCollection:
 
     def difference(self, species):
         if isinstance(species, PolyAtomicSpecies) or isinstance(species, pg.Species):
-            species = set(species) # to allow passing in a single item
+            species = {species} # to allow passing in a single item
+        if isinstance(species, SpeciesCollection):
+            species = species.ungrouped_view()
         self._is_valid_collection_data(species) # error checking
         self._set_empty_views() # old derived data now invalid
 
@@ -144,7 +148,7 @@ class SpeciesCollection:
 
         return SpeciesCollection(filtered_collection)
 
-  @classmethod
+    @classmethod
     def for_elements(
         cls, 
         elements=None, 
@@ -170,5 +174,10 @@ class SpeciesCollection:
     def __len__(self):
         return len(self._species)
 
+    def __iter__(self):
+        return iter(self._species)
+
     def __str__(self):
         return f'{__class__.__name__} {self.ungrouped_view()}'
+    
+
