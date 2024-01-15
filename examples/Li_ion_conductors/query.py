@@ -19,7 +19,7 @@ with open(ingredients_file) as f:
             ingredients.append(comp)
 
 with open(reps_file) as f:
-    comparisons = [row['composition'] for row in DictReader(f)][:4]
+    comparisons = [row['composition'] for row in DictReader(f)]
 
 Li = {'Li'}
 A = {'B', 'Al', 'Si', 'P'}
