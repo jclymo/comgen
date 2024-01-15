@@ -6,7 +6,7 @@ reps_file = "LiIon_reps.csv"
 ingredients_file = "Li_starting_materials.csv"
 output_file = "results.txt"
 
-distance = 1
+distance = 5
 num_results = 20
 
 ingredients, excluded, comparisons = [], [], []
