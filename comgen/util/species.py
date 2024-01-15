@@ -1,5 +1,5 @@
 from collections import defaultdict
-from comgen.data import data
+from comgen.util.data import PossibleSpecies, mono_atomic_species, poly_atomic_species
 import pymatgen.core as pg
 import numpy as np
 
@@ -76,9 +76,6 @@ class SpeciesCollection:
     def ungrouped_view(self) -> set:
         return self._species
 
-    # def group_by_pettifor_view(self):
-    #   return {el.mendeleev_no: species for el, species in self.group_by_element_view().items()}
-
     def group_by_element_view(self):
         if self._elements_view:
             return self._elements_view
@@ -152,7 +149,7 @@ class SpeciesCollection:
     def for_elements(
         cls, 
         elements=None, 
-        permitted=data.PermittedSpecies.SH_FIX_BrClFINS, 
+        permitted=PossibleSpecies.SH_FIX_HALOGEN, 
         include_poly=False):
         """
         For the given set of elements (or all elements), get collection of possible species.
@@ -163,10 +160,10 @@ class SpeciesCollection:
         if elements:
             elements = {pg.Element(el) for el in elements}
 
-        mono_species = data.get_permitted_mono_species(elements, permitted)
+        mono_species = mono_atomic_species(elements, permitted)
         species = {pg.Species(el, chg) for (el, chg) in mono_species}
         if include_poly:
-            poly_species = data.get_poly_atomic_species(elements)
+            poly_species = poly_atomic_species(elements)
             species.update({PolyAtomicSpecies(comp, chg) for (comp, chg) in poly_species})
 
         return cls(species)
