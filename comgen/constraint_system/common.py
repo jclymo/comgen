@@ -19,7 +19,7 @@ def apply_bounds(var, exact=None, *, lb=None, ub=None):
         constraints.append(var <= ub)
     
     if len(constraints) > 1:
-        return And(*constraints)
+        return And(constraints)
     return constraints[0]
 
 def zero_weighted_sum(vars, weights):
@@ -27,10 +27,14 @@ def zero_weighted_sum(vars, weights):
 
 def weighted_sum(vars, weights, exact=None, *, lb=None, ub=None):
     assert len(vars) == len(weights)
-    weighted_vars = []
-    for i in range(len(vars)):
-        weighted_vars.append(vars[i] * weights[i])
-    return apply_bounds(Sum(*weighted_vars), exact, lb=lb, ub=ub)
+    weighted_vars = [v * w for v, w in zip(vars, weights)]
+    return apply_bounds(Sum(weighted_vars), exact, lb=lb, ub=ub)
+
+def bound_weighted_average_value_ratio(weight_vars1, weight_vars2, values1, values2, exact=None, *, lb=None, ub=None):
+    """Assumes all vars to be non-negative.
+    """
+    ratio = weighted_sum(weight_vars1, values1) * Sum(weight_vars2) / weighted_sum(weight_vars2, values2) / Sum(weight_vars1)
+    return apply_bounds(ratio, exact, lb=lb, ub=ub)
 
 def Abs(x):
 	return If(x >= 0, x, -x)
