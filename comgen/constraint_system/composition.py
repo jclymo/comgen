@@ -1,6 +1,6 @@
 from z3 import And, Or, Not, Sum, Real, Q
 from comgen import SpeciesCollection, PolyAtomicSpecies
-from comgen.constraint_system.common import zero_weighted_sum, apply_bounds, check_bounds
+from comgen.constraint_system.common import zero_weighted_sum, apply_bounds, check_bounds, bound_weighted_average_value_ratio
 import pymatgen.core as pg
 from fractions import Fraction
 
@@ -158,6 +158,16 @@ class TargetComposition:
             return bound_elts_quantity_cons
         self.cons.append(bound_elts_quantity_cons)
 
+    def bound_species_quantity(self, sps: set, exact: float=None, return_constraint=False, *, lb: float=None, ub: float=None):
+        """Constraint the total quantity across species in the given set.
+        """
+        total_sps_quantity = Sum([self.species_quantity_vars(str(sp)) for sp in sps])
+        bound_sps_quantity_cons = apply_bounds(total_sps_quantity, exact, lb=lb, ub=ub)
+
+        if return_constraint:
+            return bound_sps_quantity_cons
+        self.cons.append(bound_sps_quantity_cons)
+
     def exclude_composition(self, composition, precision=0.1, return_constraint=False):
         if isinstance(composition, pg.Composition):
             composition = dict(composition)
@@ -173,26 +183,27 @@ class TargetComposition:
             return exclude_cons
         self.cons.append(exclude_cons)
 
-    def include_species_pair_with_value_ratio(self, sps_1, sps_2, return_constraint=False, *, lb: float=None, ub: float=None):
-        pairs = []
-        for sp1, v1 in sps_1.items():
-            assert isinstance(v1, (int, float))
-            for sp2, v2 in sps_2.items():
-                assert isinstance(v2, (int, float))
-                if lb is None or v1 / v2 >= lb:
-                    if ub is None or v1 / v2 <= ub:
-                        pairs.append((sp1, sp2))
-
+    def select_species_pair(self, pairs, return_constraint=False):
         sps_quants = self.species_quantity_vars()
-        cons = []
+        select_cons = []
         for sp1, sp2 in pairs:
-            cons.append(And(sps_quants[sp1] > 0, sps_quants[sp2] > 0))
+            select_cons.append(And(sps_quants[sp1] > 0, sps_quants[sp2] > 0))
         
-        select_pair_cons = Or(cons)
-
         if return_constraint:
-            return select_pair_cons
-        self.cons.append(select_pair_cons)
+            return Or(select_cons)
+        self.cons.append(Or(select_cons))
+
+    def bound_average_species_value_ratio(self, sps_1, sps_2, return_constraint=False, *, lb: float=None, ub: float=None):
+        sps_quants = self.species_quantity_vars()
+        vars_1 = [sps_quants[sp] for sp in sps_1.keys()]
+        vars_2 = [sps_quants[sp] for sp in sps_2.keys()]
+        vals_1 = sps_1.values()
+        vals_2 = sps_2.values()
+
+        ratio_cons = bound_weighted_average_value_ratio(vars_1, vars_2, vals_1, vals_2, lb=lb, ub=ub)
+        if return_constraint:
+            return ratio_cons
+        self.cons.append(ratio_cons)
 
     def synthesise_from(self, synthesis, return_constraint=False):
         return synthesis.fix_product(self.element_quantity_vars(), return_constraint)
