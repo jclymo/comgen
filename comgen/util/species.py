@@ -1,5 +1,5 @@
 from collections import defaultdict
-from comgen.util.data import PossibleSpecies, mono_atomic_species, poly_atomic_species
+from .data import PossibleSpecies, mono_atomic_species, poly_atomic_species
 import pymatgen.core as pg
 import numpy as np
 
