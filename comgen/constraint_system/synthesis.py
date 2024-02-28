@@ -2,10 +2,11 @@ from comgen.constraint_system.common import zero_weighted_sum, weighted_sum
 from z3 import Real, And
 
 class Synthesis:
-    def __init__(self, ingredient_compositions, constraint_log):
+    def __init__(self, ingredient_compositions, constraint_log, return_vars):
         self.ingredient_compositions = ingredient_compositions
         self.name = f"Synthesis{id(self)}"
         self.cons = constraint_log
+        self.return_vars = return_vars
         self._ingredient_quantity_variable_collection = {}
         self._setup()
 
@@ -15,6 +16,7 @@ class Synthesis:
     def _new_ingredient_quantity_var(self, comp):
         var = Real(f'{self.name}_{str(comp)}_ingredientquantity')
         self._ingredient_quantity_variable_collection[str(comp)] = var
+        self.return_vars.append(var)
         return var
 
     def _setup(self):

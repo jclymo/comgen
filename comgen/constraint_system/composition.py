@@ -5,7 +5,7 @@ import pymatgen.core as pg
 from fractions import Fraction
 
 class TargetComposition:
-    def __init__(self, permitted_species, constraint_log):
+    def __init__(self, permitted_species, constraint_log, return_vars):
         if not isinstance(permitted_species, SpeciesCollection): 
             raise TypeError("permitted_species argument must be a SpeciesCollection.")
         
@@ -14,6 +14,7 @@ class TargetComposition:
         self.permitted_species = permitted_species
 
         self.cons = constraint_log
+        self.return_vars = return_vars
 
         self.element_quantity_variable_collection = {} 
         self.species_quantity_variable_collection = {}
@@ -21,11 +22,15 @@ class TargetComposition:
 
     def _new_element_quantity_var(self, el):
         el_id = str(el)
-        self.element_quantity_variable_collection[el_id] = Real(f'{self.name}_{el_id}_elementquantity')
+        var = Real(f'{self.name}_{el_id}_elementquantity')
+        self.element_quantity_variable_collection[el_id] = var
+        self.return_vars.append(var)
 
     def _new_species_quantity_var(self, sp):
         sp_id = str(sp)
-        self.species_quantity_variable_collection[sp_id] = Real(f'{self.name}_{sp_id}_speciesquantity')
+        var = Real(f'{self.name}_{sp_id}_speciesquantity')
+        self.species_quantity_variable_collection[sp_id] = var
+        self.return_vars.append(var)
 
     def _setup(self):
         for sp in self.permitted_species:
@@ -120,7 +125,7 @@ class TargetComposition:
         self.cons.append(bound_elts_present_cons)
     
     def count_elements(self, exact: int=None, return_constraint=False, *, lb: int=None, ub: int=None):
-        """Constrain the number of elemenets included in the composition
+        """Constrain the number of elements included in the composition
         """
         elements = {str(elt) for elt in self.elements}
         return self.count_elements_from(elements, exact, return_constraint, lb=lb, ub=ub)
@@ -169,6 +174,12 @@ class TargetComposition:
         self.cons.append(bound_sps_quantity_cons)
 
     def exclude_composition(self, composition, precision=0.1, return_constraint=False):
+        """Exclude a composition from the composition space. 
+        
+        Args:
+            composition (dict): composition to exclude
+            precision (float): tolerance for excluding composition
+        """
         if isinstance(composition, pg.Composition):
             composition = dict(composition)
         
@@ -194,6 +205,8 @@ class TargetComposition:
         self.cons.append(Or(select_cons))
 
     def bound_average_species_value_ratio(self, sps_1, sps_2, return_constraint=False, *, lb: float=None, ub: float=None):
+        """Constrain the ratio of the average value of species in two sets.
+        """
         sps_quants = self.species_quantity_vars()
         vars_1 = [sps_quants[sp] for sp in sps_1.keys()]
         vars_2 = [sps_quants[sp] for sp in sps_2.keys()]
@@ -209,6 +222,8 @@ class TargetComposition:
         return synthesis.fix_product(self.element_quantity_vars(), return_constraint)
 
     def bound_distance(self, other, calculator, return_constraint=False, *, ub=None, lb=None):
+        """Constrain the distance between this composition and another given a calculator whose metric acts on normed element quantities.
+        """
         elt_vars = {self.name: self.element_quantity_vars()}
         
         if isinstance(other, str):
@@ -216,7 +231,7 @@ class TargetComposition:
 
         if isinstance(other, pg.Composition):
             other = other.fractional_composition
-            elt_vars.update({str(other): dict(other.fractional_composition)})
+            elt_vars.update({str(other): dict(other)})
         elif isinstance(other, TargetComposition):
             elt_vars.update({str(other): other.element_quantity_vars()})
         else:

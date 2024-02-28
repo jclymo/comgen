@@ -17,13 +17,14 @@ class Distance:
         return apply_bounds(var, lb=lb, ub=ub)
 
 class EMD(Distance):
-    def __init__(self, id_mapping_func, ordered_metric_ids, constraint_log):
+    def __init__(self, id_mapping_func, ordered_metric_ids, constraint_log, return_vars):
         self.name = f'EMD{id(self)}'
         self._distance_var_collection = {}
         self._difference_var_collection = {}
         self.ordered_metric_ids = ordered_metric_ids
         self.id_mapping_func = id_mapping_func
         self.constraint_log = constraint_log
+        self.return_vars = return_vars
 
     def _difference_var(self, id_1, id_2, var_id=None):
         vars = self._difference_var_collection.get(str((id_1, id_2)))
@@ -52,6 +53,7 @@ class EMD(Distance):
     def _new_distance_var(self, id_1, id_2):
         var = Real(f'{self.name}_{str((id_1, id_2))}_EMDdistance')
         self._distance_var_collection[str((id_1, id_2))] = var
+        self.return_vars.append(var)
         return var
 
     def _setup_distance_calculation(self, object_vars):
@@ -60,7 +62,6 @@ class EMD(Distance):
         expects exactly 2 objects
         """
         assert len(object_vars) == 2
-
         id_1, id_2 = object_vars.keys()
         object_vars[id_1] = {self.id_mapping_func(var_id): var for var_id, var in object_vars[id_1].items()}
         object_vars[id_2] = {self.id_mapping_func(var_id): var for var_id, var in object_vars[id_2].items()}
