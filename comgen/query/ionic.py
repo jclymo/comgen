@@ -26,11 +26,11 @@ class SingleTarget(Query):
         return self._sps
 
     def _setup(self):
-        self.new_comp = TargetComposition(self._sps, self.constraints)
+        self.new_comp = TargetComposition(self._sps, self.constraints, self.return_vars)
 
     def _get_elmd_calc(self):
         if self._elmd_calculator is None:
-            self._elmd_calculator = EMD(element_to_pettifor, PETTIFOR_KEYS, self.constraints)
+            self._elmd_calculator = EMD(element_to_pettifor, PETTIFOR_KEYS, self.constraints, self.return_vars)
         return self._elmd_calculator
 
     def elmd_close_to_one(self, compositions, bounds):
@@ -46,11 +46,12 @@ class SingleTarget(Query):
         if isinstance(bounds, float) or isinstance(bounds, int): bounds = [bounds]*len(compositions)
         assert len(bounds) == len(compositions)
         
+        calc = self._get_elmd_calc()
         for comp, dist in zip(compositions, bounds):
-            self.new_comp.bound_distance(comp, self._get_elmd_calc(), lb=dist)
+            self.new_comp.bound_distance(comp, calc, lb=dist)
 
     def made_from(self, ingredients):
-        synthesis = Synthesis(ingredients, self.constraints)
+        synthesis = Synthesis(ingredients, self.constraints, self.return_vars)
         self.new_comp.synthesise_from(synthesis)
 
     def include_elements(self, elements, exact=None, *, lb=None, ub=None):
@@ -61,7 +62,7 @@ class SingleTarget(Query):
         lb = self.frac_to_rational(lb)
         ub = self.frac_to_rational(ub)
         self.new_comp.bound_elements_quantity(elements, exact, lb=lb, ub=ub)
-    
+
     def distinct_elements(self, exact=None, *, lb=None, ub=None):
         self.new_comp.count_elements(exact, lb=lb, ub=ub)
 
@@ -77,13 +78,12 @@ class SingleTarget(Query):
         self.new_comp.property_predictor_category(model, category)
 
     def get_next(self, as_frac=False):
-        model = super().get_next()
+        model, return_vars = super().get_next()
         if model is None:
             return None
         elt_quants = self.new_comp.format_solution(model, as_frac)
         self.new_comp.exclude_composition(elt_quants, self.precision)
-        return {elt: str(q) for elt, q in elt_quants.items()}
-
+        return {elt: str(q) for elt, q in elt_quants.items()}, return_vars
 
 class IonicComposition(SingleTarget):
     def _setup(self):
