@@ -21,7 +21,8 @@ class Synthesis:
 
     def _setup(self):
         for comp in self.ingredient_compositions:
-            self._new_ingredient_quantity_var(comp)
+            var = self._new_ingredient_quantity_var(comp)
+            self.cons.append(var >= 0)
 
     def fix_product(self, element_quantities, return_constraint=False):
         """
