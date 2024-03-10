@@ -175,6 +175,8 @@ class TargetComposition:
         self.cons.append(exclude_cons)
 
     def select_species_pair(self, pairs, return_constraint=False):
+        """Select at least one pair from those given.
+        """
         sps_quants = self.species_quantity_vars()
         select_cons = []
         for sp1, sp2 in pairs:
@@ -183,6 +185,21 @@ class TargetComposition:
         if return_constraint:
             return Or(select_cons)
         self.cons.append(Or(select_cons))
+
+    def exclude_species_pairs(self, pairs, return_constraint=False):
+        """Do not include both species from the pairs given.
+        """
+        sps_quants = self.species_quantity_vars()
+        exclude_cons = []
+        for sp1, var1 in sps_quants.items():
+            for sp2, var2 in sps_quants.items():
+                if sp1 == sp2: continue
+                if (sp1, sp2) in pairs:
+                    exclude_cons.append(Or(var1 == 0, var2 == 0))
+
+        if return_constraint:
+            return And(exclude_cons)
+        self.cons.append(And(exclude_cons))
 
     def bound_average_species_value_ratio(self, sps_1, sps_2, return_constraint=False, *, lb: float=None, ub: float=None):
         """Constrain the ratio of the average value of species in two sets.

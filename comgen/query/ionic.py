@@ -121,6 +121,8 @@ class IonicComposition(SingleTarget):
         self.new_comp.restrict_charge_by_electronegativity()
 
     def ion_pair_radius_ratio(self, sps1, sps2, cn1=None, cn2=None, *, lb=None, ub=None):
+        """At least one pair of species selected must have a radius ratio within the bounds.
+        """
         pairs = []
         for sp1, v1 in get_radii(sps1, cn1).items():
             assert isinstance(v1, (int, float))
@@ -130,8 +132,23 @@ class IonicComposition(SingleTarget):
                     if ub is None or v1 / v2 <= ub:
                         pairs.append((sp1, sp2))
 
-        self.new_comp.select_species_pair(pairs)
-        # self.new_comp.include_species_pair_with_value_ratio(get_radii(sps1, cn1), get_radii(sps2, cn2), lb=lb, ub=ub)
+        self.new_comp.select_species_pair(pairs) # include at least one
+
+    def ion_pair_radius_difference(self, sps1, sps2=None, cn1=None, cn2=None, *, lb=None, ub=None):
+        """All pairs of species selected must have absolute radius difference within the bounds.
+        """
+        if sps2 == None: sps2 = sps1
+        excluded_pairs = []
+        for sp1, v1 in get_radii(sps1, cn1).items():
+            assert isinstance(v1 (int, float))
+            for sp2, v2 in get_radii(sps2, cn2).items():
+                assert isinstance(v2, (int, float))
+                if lb is not None and abs(v1 - v2) < lb:
+                    excluded_pairs.append((sp1, sp2))
+                elif ub is not None and abs(v1 - v2) > ub:
+                    excluded_pairs.append((sp1, sp2))
+
+        self.new_comp.exclude_species_pairs(excluded_pairs) # exclude all
 
     def include_species_quantity(self, species, exact=None, *, lb=None, ub=None):
         exact = self.frac_to_rational(exact)
