@@ -1,8 +1,9 @@
 from z3 import And, Or, sat, Solver
 from comgen import SpeciesCollection
-from comgen.constraint_system import TargetComposition, EMD, Synthesis, ONNX
+from comgen.constraint_system import TargetComposition, UnitCell, EMD, Synthesis, ONNX
 from comgen.query import PETTIFOR_KEYS, element_to_pettifor, Query, get_radii
 import pymatgen.core as pg
+from typing import Optional
 
 class SingleTarget(Query):
     def __init__(self, sps, precision=None):
@@ -11,6 +12,8 @@ class SingleTarget(Query):
         self._sps = sps
         self.precision = precision or 0.1
         self._elmd_calculator = None
+        self.total_atoms_lb = None
+        self.total_atoms_ub = None
         self._setup()
 
     @property
@@ -66,8 +69,34 @@ class SingleTarget(Query):
     def distinct_elements(self, exact=None, *, lb=None, ub=None):
         self.new_comp.count_elements(exact, lb=lb, ub=ub)
 
-    def total_atoms(self, exact=None, *, lb=None, ub=None):
-        self.new_comp.count_atoms(exact, lb=lb, ub=ub)
+    def total_atoms(
+            self,
+            exact: Optional[int]=None,
+            *,
+            lb: Optional[int]=None,
+            ub: Optional[int]=None):
+        if exact: lb, ub = exact, exact
+        if lb is None: lb = 1
+        if ub is None: raise ValueError('Please provide an upper bound on the number of atoms.')
+
+        if self.unit_cell is None:
+            self.unit_cell = UnitCell(self._sps)
+
+        self.unit_cell.bound_total_atoms_count(lb, ub)
+
+        self.new_comp.fit_to_cell(self.unit_cell)
+
+    def include_elements_count(
+            self,
+            elements,
+            exact: Optional[int]=None,
+            *,
+            lb: Optional[int]=None,
+            ub: Optional[int]=None):
+        if self.unit_cell is None:
+            self.unit_cell = UnitCell(self._sps)
+
+        self.unit_cell.bound_elements_count(elements, exact, lb=lb, ub=ub)
 
     def exclude(self, compositions):
         for comp in compositions:

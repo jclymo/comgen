@@ -1,4 +1,4 @@
-from z3 import And, Or, Not, Sum, Real, Q
+from z3 import And, Or, Not, Sum, Real, Q, Int, Implies
 from comgen import SpeciesCollection, PolyAtomicSpecies
 from comgen.constraint_system.common import zero_weighted_sum, apply_bounds, check_bounds, bound_weighted_average_value_ratio
 import pymatgen.core as pg
@@ -130,28 +130,8 @@ class TargetComposition:
         elements = {str(elt) for elt in self.elements}
         return self.count_elements_from(elements, exact, return_constraint, lb=lb, ub=ub)
 
-    def count_atoms(self, exact: int=None, return_constraint=False, *, lb: int=None, ub: int=None):
-        """Constrain the total number of atoms. 
-        The quantity of each species must be rational with denominator matching number of atoms. 
-        """
-        check_bounds(exact, lb, ub)
-        
-        sps_vars = self.species_quantity_vars()
-        if exact: lb, ub = exact, exact
-        if lb is None: lb = 1
-        if ub is None: raise ValueError('Please provide an upper bound on the number of atoms.')
-
-        select_for_total = []
-        for num_atoms in range(lb, ub+1):
-            select_n = []
-            for var in sps_vars.values():
-                select_n.append(Or([var == Q(n, num_atoms) for n in range(num_atoms+1)]))
-            select_for_total.append(And(select_n))
-
-        select_num_atoms_cons = Or(select_for_total)
-        if return_constraint:
-            return select_num_atoms_cons
-        self.cons.append(select_num_atoms_cons)
+    def fit_to_cell(self, unit_cell):
+        return unit_cell.fit_composition(self.species_quantity_vars())
 
     def bound_elements_quantity(self, elements: set, exact: float=None, return_constraint=False, *, lb: float=None, ub: float=None):
         """Constraint the total quantity across elements in the given set.
@@ -265,3 +245,72 @@ class TargetComposition:
 
     def __str__(self):
         return self.name
+
+class UnitCell:
+    def __init__(self, permitted_species: SpeciesCollection, constraint_log, return_vars):
+        self.name = f'UnitCell{str(id(self))}'
+        self.cons = constraint_log
+        self.return_vars = return_vars
+
+        self.permitted_species = permitted_species
+
+        self.species_count_variable_collection = {}
+        self.num_atoms_variable = None
+
+        self.num_atoms_lb, self.num_atoms_ub = None, None
+
+        self._setup()
+
+    def _new_species_count_var(self, sp):
+        sp_id = str(sp)
+        var = Int(f'{self.name}_{sp_id}_speciescount')
+        self.species_count_variable_collection[sp_id] = var
+        self.return_vars.append(var)
+
+    def _setup(self):
+        for sp in self.permitted_species:
+            self._new_species_count_var(sp)
+        self.num_atoms_variable = Int(f'{self.name}_numatoms')
+
+    def species_count_vars(self, sp=None):
+        if sp is not None and not isinstance(sp, str): sp = str(sp)
+
+        if sp:
+            return self.species_count_variable_collection[sp]
+        return self.species_count_variable_collection
+
+    def fit_composition(self, species_quantities):
+        """
+        params:
+            species_quantities: dict {sp: float or z3.Real}
+                for each species, either a fixed quantity (assumed to be in [0,1]) or a variable representing the normed quantity.
+        """
+        assert {str(sp) for sp in species_quantities.keys()} == self.permitted_species, 'Cell and composition must use the same species.'
+        if self.num_atoms_ub is None:
+            ValueError('Unit cell must have bounds on number of atoms before fitting a composition.')
+        relate_quantities_cons = []
+        for n in range(self.num_atoms_lb, self.num_atoms_ub+1):
+            for sp, quant in species_quantities.items():
+                cons = self.species_count_variable_collection[str(sp)] == quant * n
+                relate_quantities_cons.append(Implies(self.num_atoms_variable == n, cons))
+            self.cons.extend(relate_quantities_cons)
+
+    def bound_total_atoms_count(self, lb, ub):
+        self.num_atoms_lb = lb # record the bounds so they can be used for fitting composition
+        self.num_atoms_ub = ub
+        total_atoms_constraint = apply_bounds(self.num_atoms_variable, lb=lb, ub=ub)
+        self.cons.append(total_atoms_constraint)
+
+    def bound_elements_count(self, elements, exact=None, *, lb=None, ub=None):
+        grouped_sps = self.permitted_species.group_by_element_view()
+        sps_counts = []
+        for el in elements:
+            elt_sps = grouped_sps[el]
+            for sp in elt_sps:
+                if isinstance(sp, PolyAtomicSpecies):
+                    sps_counts.append(self.species_count_vars(sp)*sp.multiplier(el))
+                else:
+                    sps_counts.append(self.species_count_vars(sp))
+
+        elt_count_constraint = apply_bounds(Sum(sps_counts), exact, lb=lb, ub=ub)
+        self.cons.append(elt_count_constraint)

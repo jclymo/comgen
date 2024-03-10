@@ -171,6 +171,13 @@ class SpeciesCollection:
     def __len__(self):
         return len(self._species)
 
+    def __eq__(self, other):
+        if isinstance(other, SpeciesCollection):
+            return self._species == other._species
+        if isinstance(other, set):
+            return self._species == other
+        return False
+
     def __iter__(self):
         return iter(self._species)
 
