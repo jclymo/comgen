@@ -175,7 +175,11 @@ class SpeciesCollection:
         if isinstance(other, SpeciesCollection):
             return self._species == other._species
         if isinstance(other, set):
-            return self._species == other
+            for sp in self._species:
+                if not (sp in other or str(sp) in other):
+                    return False
+            return True
+            # return self._species == other
         return False
 
     def __iter__(self):

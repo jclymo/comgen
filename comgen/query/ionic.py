@@ -30,6 +30,7 @@ class SingleTarget(Query):
 
     def _setup(self):
         self.new_comp = TargetComposition(self._sps, self.constraints, self.return_vars)
+        self.unit_cell = None
 
     def _get_elmd_calc(self):
         if self._elmd_calculator is None:
@@ -80,7 +81,7 @@ class SingleTarget(Query):
         if ub is None: raise ValueError('Please provide an upper bound on the number of atoms.')
 
         if self.unit_cell is None:
-            self.unit_cell = UnitCell(self._sps)
+            self.unit_cell = UnitCell(self._sps, self.constraints, self.return_vars)
 
         self.unit_cell.bound_total_atoms_count(lb, ub)
 
@@ -94,7 +95,7 @@ class SingleTarget(Query):
             lb: Optional[int]=None,
             ub: Optional[int]=None):
         if self.unit_cell is None:
-            self.unit_cell = UnitCell(self._sps)
+            self.unit_cell = UnitCell(self._sps, self.constraints, self.return_vars)
 
         self.unit_cell.bound_elements_count(elements, exact, lb=lb, ub=ub)
 
@@ -134,14 +135,19 @@ class IonicComposition(SingleTarget):
 
         self.new_comp.select_species_pair(pairs) # include at least one
 
-    def ion_pair_radius_difference(self, sps1, sps2=None, cn1=None, cn2=None, *, lb=None, ub=None):
+    def ion_pair_radius_difference(self, sps1, sps2=None, *, lb=None, ub=None):
         """All pairs of species selected must have absolute radius difference within the bounds.
         """
         if sps2 == None: sps2 = sps1
+        if isinstance(sps1, set): sps1 = SpeciesCollection(sps1)
+        if isinstance(sps2, set): sps2 = SpeciesCollection(sps2)
+        assert isinstance(sps1, SpeciesCollection)
+        assert isinstance(sps2, SpeciesCollection)
+
         excluded_pairs = []
-        for sp1, v1 in get_radii(sps1, cn1).items():
-            assert isinstance(v1 (int, float))
-            for sp2, v2 in get_radii(sps2, cn2).items():
+        for sp1, v1 in get_radii(sps1).items():
+            assert isinstance(v1, (int, float))
+            for sp2, v2 in get_radii(sps2).items():
                 assert isinstance(v2, (int, float))
                 if lb is not None and abs(v1 - v2) < lb:
                     excluded_pairs.append((sp1, sp2))

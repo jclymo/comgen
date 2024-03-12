@@ -302,7 +302,7 @@ class UnitCell:
             species_quantities: dict {sp: float or z3.Real}
                 for each species, either a fixed quantity (assumed to be in [0,1]) or a variable representing the normed quantity.
         """
-        assert {str(sp) for sp in species_quantities.keys()} == self.permitted_species, 'Cell and composition must use the same species.'
+        assert self.permitted_species == set(species_quantities.keys()), 'Cell and composition must use the same species.'
         if self.num_atoms_ub is None:
             ValueError('Unit cell must have bounds on number of atoms before fitting a composition.')
         relate_quantities_cons = []
@@ -319,7 +319,7 @@ class UnitCell:
         self.cons.append(total_atoms_constraint)
 
     def bound_elements_count(self, elements, exact=None, *, lb=None, ub=None):
-        grouped_sps = self.permitted_species.group_by_element_view()
+        grouped_sps = {str(el): sps for el, sps in self.permitted_species.group_by_element_view().items()}
         sps_counts = []
         for el in elements:
             elt_sps = grouped_sps[el]
