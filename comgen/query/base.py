@@ -31,7 +31,7 @@ class Query:
         for con in self.constraints:
             s.add(con)
         if s.check() != sat:
-            return 
+            return None, None
         model = s.model()
         self.solutions.append(model)
         return model, self.get_monitored_vars(model)
