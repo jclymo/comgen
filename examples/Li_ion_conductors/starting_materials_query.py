@@ -1,10 +1,13 @@
 from comgen import SpeciesCollection, IonicComposition
 from csv import DictReader 
 import pymatgen.core as pg
+from pathlib import Path
 
-reps_file = "../data/LiIon_reps.csv"
-ingredients_file = "../data/Li_starting_materials.csv"
 output_file = "results.txt"
+
+data_dir = Path(__file__).parent.parent / 'data'
+reps_file = data_dir / 'LiIon_reps.csv'
+ingredients_file = data_dir / 'Li_starting_materials.csv'
 
 distance = 5
 num_results = 20

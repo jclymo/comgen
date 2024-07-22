@@ -1,8 +1,11 @@
 from comgen import SpeciesCollection, IonicComposition
 from csv import DictReader 
+from pathlib import Path
 
-li_conductors_file = "../data/LiIonDatabase.csv"
 output_file = "results.txt"
+
+data_dir = Path(__file__).parent.parent / 'data'
+li_conductors_file = data_dir / 'LiIonDatabase.csv'
 
 distance = 3
 num_results = 5
