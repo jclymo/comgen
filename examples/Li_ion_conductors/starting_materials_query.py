@@ -31,6 +31,15 @@ E = {'S', 'Se', 'Te', 'Cl', 'Br', 'I'}
 elts = Li|A|B|C|D|E
 sps = SpeciesCollection.for_elements(elts)
 
+# remove unwanted species from default - for this query we only want to allow one charge per element
+sps = sps.difference({
+    pg.Species('Ta', 4), pg.Species('Ta', 3),
+    pg.Species('Se', 4), pg.Species('Se', 6),
+    pg.Species('Te', 4), pg.Species('Te', 6),
+    pg.Species('Ge', 4),
+    pg.Species('P', 3)})
+
+
 query = IonicComposition(sps)
 
 query.include_elements_quantity(Li, lb=0.2)
@@ -48,6 +57,6 @@ query.total_atoms(lb=10, ub=15)
 with open(output_file, 'w') as f_out:
     i = 0
     while i < num_results:
-        res = query.get_next(as_frac=True)
+        res, model = query.get_next(as_frac=True)
         f_out.write(str(res)+'\n')
         i += 1
