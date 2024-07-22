@@ -29,9 +29,9 @@ query.distinct_elements(lb=3, ub=6)
 
 query.total_atoms(13)
 
-query.include_elements_quantity(Mg, Fraction(6,13))
-query.include_species_quantity(sps1, Fraction(1,13))
-query.include_species_quantity(sps2, Fraction(6,13)) 
+query.include_elements_quantity(Mg, lb=Fraction(3, 13), ub=Fraction(6, 13))
+query.include_species_quantity(sps1, lb=Fraction(1,13))
+# query.include_species_quantity(sps2, lb=Fraction(6,13)) 
 
 with open(output_file, 'a') as f_out:
     i = 0
